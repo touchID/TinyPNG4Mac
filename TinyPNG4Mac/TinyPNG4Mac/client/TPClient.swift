@@ -66,35 +66,45 @@ class TPClient {
     }
 
     private func executeTask(_ task: TaskInfo) {
+        // 开始处理文件上传任务
         do {
+            // 尝试从原始URL加载图像数据
             guard let data = try? Data(contentsOf: task.originUrl) else {
                 print("error load image data")
                 return
             }
 
+            // 获取请求头信息
             let headers = requestHeaders()
 
+            // 更新任务状态为上传中
             updateStatus(.uploading, of: task)
 
+            // 模拟模式下，使用异步延迟模拟上传、处理和下载过程
             if mockEnabled {
-                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.5) {
-                    self.updateStatus(.uploading, progress: 0.43237, of: task)
+                // 模拟上传进度
+                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.005) {
+                    self.updateStatus(.uploading, progress: 0.86237, of: task)
                 }
 
-                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + Double.random(in: 0.8 ..< 1.5)) {
+                // 模拟处理状态
+                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + Double.random(in: 0.008 ..< 0.015)) {
                     self.updateStatus(.processing, of: task)
                 }
 
-                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 2) {
+                // 模拟下载状态
+                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.02) {
                     self.updateStatus(.downloading, of: task)
                 }
 
-                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 3) {
-                    self.updateStatus(.downloading, progress: 0.331983218, of: task)
+                // 模拟下载进度
+                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.03) {
+                    self.updateStatus(.downloading, progress: 0.861983218, of: task)
                 }
 
-                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + Double.random(in: 5 ..< 7)) {
-                    if Bool.random() {
+                DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + Double.random(in: 0.05 ..< 0.07)) {
+                    if true {
+                    //if Bool.random() {
                         self.completeTask(task, fileSizeFromResponse: 1028)
                     } else {
                         self.failTask(task, error: TaskError.apiError(statusCode: 401, message: "Unauthorised. This custom implementation provides more control"))
@@ -103,33 +113,45 @@ class TPClient {
                 return
             }
 
+            // 非模拟模式下，使用Alamofire上传数据
             let uploadRequest = AF.upload(data, to: TPAPI.shrink.rawValue, headers: headers)
                 .uploadProgress { progress in
+                    // 根据上传进度更新状态
                     if progress.fractionCompleted == 1 {
                         self.updateStatus(.processing, of: task)
                     } else {
                         self.updateStatus(.uploading, progress: progress.fractionCompleted, of: task)
                     }
                 }
+            // 将请求添加到当前请求列表
             currentRequests.append(uploadRequest)
 
+            // 处理上传响应
             uploadRequest.responseDecodable(of: TPShrinkResponse.self) { response in
+                // 从当前请求列表中移除已完成的请求
                 self.currentRequests.removeAll { $0.id == uploadRequest.id }
 
                 switch response.result {
                 case let .success(responseData):
+                    // 从响应头中获取已使用配额并更新
                     if let usedQuota = Int(response.response?.value(forHTTPHeaderField: TPClient.HEADER_COMPRESSION_COUNT) ?? "") {
                         self.updateUsedQuota(usedQuota)
                     }
+                    // 处理成功响应，开始下载文件
                     if let output = responseData.output {
                         self.downloadFile(task, response: output)
-                    } else if let error = responseData.error {
+                    }
+                    // 处理API返回的错误
+                    else if let error = responseData.error {
                         let errorDescription = error + ": " + (responseData.message ?? "Unknown error")
                         self.failTask(task, error: TaskError.apiError(statusCode: response.response?.statusCode ?? 0, message: errorDescription))
-                    } else {
+                    }
+                    // 处理解析响应失败的情况
+                    else {
                         self.failTask(task, error: TaskError.apiError(statusCode: response.response?.statusCode ?? 0, message: "fail to parse response"))
                     }
                 case let .failure(error):
+                    // 处理网络请求失败
                     self.failTask(task, error: TaskError.apiError(statusCode: response.response?.statusCode ?? 0, message: error.localizedDescription))
                 }
             }

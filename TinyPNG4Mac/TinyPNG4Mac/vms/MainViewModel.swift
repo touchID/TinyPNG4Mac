@@ -39,7 +39,79 @@ class MainViewModel: ObservableObject, TPClientCallback {
     var failedTaskCount: Int {
         tasks.count { $0.status == .failed }
     }
+    func processImageAndCompress(originUrl: URL) -> Data? {
+        // 加载图片数据
+        guard let imageData = loadImageData(from: originUrl) else {
+            return nil
+        }
+        
+        // 创建图片对象
+        guard let image = NSImage(data: imageData) else {
+            print("无效的图片数据: \(originUrl.lastPathComponent)")
+            return imageData // 返回原始数据继续处理
+        }
+        
+        // 压缩图片
+        if let compressedData = compressImage(image) {
+            // 保存压缩后的图片
+            saveCompressedImage(compressedData, originUrl: originUrl)
+            return compressedData
+        } else {
+            print("图片压缩失败: \(originUrl.lastPathComponent)")
+            return imageData // 压缩失败，返回原始数据继续处理
+        }
+    }
 
+    // 加载图片数据
+    private func loadImageData(from url: URL) -> Data? {
+        var loadedData: Data?
+        var loadError: Error?
+        
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: nil) { fileUrl in
+            do {
+                loadedData = try Data(contentsOf: fileUrl)
+            } catch {
+                loadError = error
+            }
+        }
+        
+        if let error = loadError {
+            let task = TaskInfo(originUrl: url)
+            task.updateError(error: TaskError.from(error: error))
+            appendTask(task: task)
+            print("加载图片数据失败: \(url.lastPathComponent), 错误: \(error.localizedDescription)")
+            return nil
+        }
+        
+        return loadedData
+    }
+
+    // 压缩图片
+    private func compressImage(_ image: NSImage) -> Data? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+        
+        let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
+        return bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: 0.5])
+    }
+
+    // 保存压缩后的图片
+    private func saveCompressedImage(_ compressedData: Data, originUrl: URL) {
+        let originalFileName = originUrl.deletingPathExtension().lastPathComponent
+        let originalFileExtension = originUrl.pathExtension
+        let compressedFileName = "\(originalFileName).\(originalFileExtension)"
+        let outputDirectory = AppContext.shared.appConfig.outputDirectoryUrl ?? FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+        let compressedFilePath = outputDirectory.appendingPathComponent(compressedFileName)
+// let compressedFilePath = URL(string: "file:///Users/lu/Downloads/tinyimage_output/" + (compressedFileName))!
+        do {
+            try compressedData.write(to: compressedFilePath)
+            print("图片压缩成功: \(compressedFilePath.lastPathComponent)")
+        } catch {
+            print("保存压缩图片失败: \(compressedFilePath.lastPathComponent), 错误: \(error.localizedDescription)")
+        }
+    }
+    
     func createTasks(imageURLs: [URL: URL]) {
         if !validateSettingsBeforeStartTask() {
             return
@@ -116,6 +188,9 @@ class MainViewModel: ObservableObject, TPClientCallback {
 
                 appendTask(task: task)
 
+                guard let _ = processImageAndCompress(originUrl: task.originUrl) else {
+                    continue // 处理失败，跳过当前文件
+                }
                 TPClient.shared.addTask(task: task)
             }
         }
