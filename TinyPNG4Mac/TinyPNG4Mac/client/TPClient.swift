@@ -5,7 +5,7 @@
 //  Created by kyleduo on 2024/11/24.
 //
 
-import Alamofire
+//import Alamofire
 import Foundation
 
 class TPClient {
