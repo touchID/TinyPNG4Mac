@@ -105,7 +105,13 @@ class TPClient {
                 DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + Double.random(in: 0.05 ..< 0.07)) {
                     if true {
                     //if Bool.random() {
-                        self.completeTask(task, fileSizeFromResponse: 1028)
+                        var fileSize: UInt64 = 0
+                        do {
+                            fileSize = try task.originUrl.sizeOfFile()
+                        } catch {
+                        }
+                        //self.completeTask(task, fileSizeFromResponse: 1028)
+                        self.completeTask(task, fileSizeFromResponse: fileSize)
                     } else {
                         self.failTask(task, error: TaskError.apiError(statusCode: 401, message: "Unauthorised. This custom implementation provides more control"))
                     }

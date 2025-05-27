@@ -43,7 +43,7 @@ struct FileUtils {
             }
         }
         
-        DebugViewModel.shared.debugMessages.append("initPaths complete")
+        DebugViewModel.shared.debugMessages.append("initPaths complete 初始化路径完成")
     }
 
     private static func cleanSandboxCacheDir() {

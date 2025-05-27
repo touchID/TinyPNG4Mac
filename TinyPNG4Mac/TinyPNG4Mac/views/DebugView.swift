@@ -13,15 +13,19 @@ struct DebugView: View {
     @EnvironmentObject var debugVM: DebugViewModel
 
     var body: some View {
-        if appContext.isDebug {
-            VStack(alignment: .trailing) {
-                ForEach(debugVM.debugMessages, id: \.self) { msg in
-                    Text(msg)
+        Group {
+            if appContext.isDebug {
+                VStack(alignment: .trailing) {
+                    ForEach(debugVM.debugMessages, id: \.self) { msg in
+                        Text(msg)
+                    }
+                    Spacer()
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(vertical: 25, horizontal: 16)
+            } else {
+                EmptyView() // 确保非调试模式下返回有效视图
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(vertical: 32, horizontal: 16)
         }
     }
 }
